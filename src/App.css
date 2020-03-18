@@ -403,12 +403,14 @@ img {
 
 .task-list__view {
   padding-top: 24px;
-  width: 100%;
-  overflow: auto;
+  margin-left: -20px;
+  width: calc(100% + 20px);
+  overflow: hidden;
 }
 .task-list__container {
   position: relative;
   padding-top: 36px;
+  margin-left: 20px;
   width: 1021px; /* присваивать из js */
 }
 .task-list__container__markup {

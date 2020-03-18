@@ -73,8 +73,8 @@ export default {
     },
     moveTask(e) {
       // Если статус не "Завершен" или "Не выполнен" то ничего не делать
-      if (this.task.status !== 'expect')
-        return;
+      // if (this.task.status !== 'expect')
+      //   return;
 
       let param = {
         index: this.index,

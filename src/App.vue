@@ -132,7 +132,7 @@
                 v-for="(person, idx, key) in group"
                 :key="key"
               >
-                <div class="p-card">
+                <div class="p-card" v-if="person.person">
                   <div class="avatar p-card__img">
                     <img :src="person.person.avatar | getAvatar" alt=""> 
                   </div>
@@ -145,10 +145,14 @@
             </div>
           </div>
           <div class="col-right">
-            <div class="task-list__view">
+            <div class="task-list__view" ref="taskListView">
               <div class="task-list__container"
+                ref="taskListContainer"
+                :style="'transform: translateX(' + shiftContainer + 'px);'"
                 @mousemove="overTask"
                 @mouseup="changeFinish"
+                @mousedown="startMovingContainer"
+                @wheel="wheelContainer"
                 @mouseleave="changeFinish"
               >
                 <div class="task-list__container__markup">
@@ -204,7 +208,6 @@
                     />
                   </div>
                 </div>
-
               </div>
             </div>
           </div>
@@ -323,6 +326,7 @@ export default {
           }
         ]
       ],
+      // list: [],
       
       changedTask: null, // изменяемая задача
       changedTaskIdx: null, // путь до задачи (для изменения)
@@ -340,6 +344,12 @@ export default {
       timerId: null, // setInterval
       timeString: '', // текущее время
       shiftTime: 0, // смещение времени (залитая площадь)
+
+      moveContainer: false,
+      shiftContainer: 0,
+      shiftContainerOld: 0,
+      boxSize: [],
+      containerSize: []
     };
   },
   filters: {
@@ -349,10 +359,72 @@ export default {
         : '../images/avatars/no-photo.jpg'
     },
   },
+  // created() {
+  //   this.readData();
+  // },
   mounted() {
     this.runTime();
+    this.getBoxSize();
   },
   methods: {
+    readData() {
+      fetch('/api/test', {
+        method: 'post',
+        headers: {
+          'Content-Type': 'application/json;charset=utf-8',
+        },
+      }).then(response => response.json())
+        .then(result => {
+          if (result && result.result) {
+            this.list = JSON.parse(result.result);
+          }
+          // console.log(JSON.parse(result.result));
+        })
+        .catch(e => {
+          console.log(e);
+        });
+    },
+
+    recordData() {
+      const data = JSON.stringify(this.list);
+
+      fetch('/api/test', {
+        method: 'put',
+        headers: {
+          'Content-Type': 'application/json;charset=utf-8',
+        },
+        body: data
+      }).then(response => response.json())
+        .then(result => {
+          console.log(result);
+        })
+        .catch(e => {
+          console.log(e);
+        });
+    },
+
+    getBoxSize() {
+      let elem = this.$refs['taskListView'];
+
+      if (!elem)
+        return;
+
+      let box = elem.getBoundingClientRect();
+
+      this.boxSize = [Math.round(box.left), Math.round(box.left + box.width)];
+    },
+    getContainerSize() {
+      let elem = this.$refs['taskListContainer'];
+
+      if (!elem)
+        return;
+
+      let container = this.$refs['taskListContainer'].getBoundingClientRect();
+
+      this.containerSize = [Math.round(container.left), Math.round(container.left + container.width)];
+      this.shiftContainerOld = this.shiftContainer;
+    },
+
     shiftTask({index, coord}) {
       let durationNext = 0;
       let list = this.list[index[0]][index[1]].tasks;
@@ -400,9 +472,25 @@ export default {
       this.limitCoords = [min, max];
     },
 
+    moveingContainer (shift) {
+      if ((this.containerSize[0] + shift) >= this.boxSize[0]) {
+        this.shiftContainer = 0;
+      } else if ((this.containerSize[1] + shift) <= this.boxSize[1]) {
+        this.shiftContainer = this.boxSize[1] - this.containerSize[1] + this.shiftContainerOld;
+      } else {
+        this.shiftContainer = shift + this.shiftContainerOld;
+      }
+    },
+
     overTask(e) {
       if (!this.startCoord)
           return;
+
+      if (this.moveContainer) {
+        let shift = e.clientX - this.startCoord;
+
+        this.moveingContainer(shift);
+      }
 
       if (this.shiftProcess) {      
         let shift = this.startCoord - e.clientX;
@@ -491,6 +579,10 @@ export default {
     },
 
     changeFinish() {
+      if (this.moveContainer) {
+        this.moveContainer = false;
+      }
+
       if (this.moveProcess) {
         this.moveProcess = false;
         this.moveLeftUp = [0, 0];
@@ -498,6 +590,8 @@ export default {
         this.changeRow = false;
         this.changedTask = null;
         this.changedTaskIdx = null;
+
+        // this.recordData();
       } else if (this.shiftProcess) {
         this.shiftProcess = false;
         this.shiftWidth = 0;
@@ -505,9 +599,11 @@ export default {
         this.limitCoords = null;
         this.changedTask = null;
         this.changedTaskIdx = null;
+        
+        // this.recordData();
       }
 
-      // Запись в файл
+      // Запись в файл вывести в отдельную функцию
     },
   
     overlayCheck(idxPath, shift, direction) {
@@ -591,6 +687,20 @@ export default {
           }
         }
       });
+    },
+
+    startMovingContainer(e) {
+      this.moveContainer = true;
+      this.startCoord = e.clientX;
+
+      this.getContainerSize();
+    },
+
+    wheelContainer(e) {
+      let shift = e.deltaY || e.detail || e.wheelDelta;
+
+      this.getContainerSize();
+      this.moveingContainer(-shift / 2);
     }
   }
 }
